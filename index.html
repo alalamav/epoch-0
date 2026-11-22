@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Epoch 0</title>
+    <meta
+      name="description"
+      content="One lab plate of 48 small neural networks that have never been trained. Press a well and hear what the network does."
+    />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F3F1EA" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0D0E0F" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23F3F1EA'/%3E%3Ccircle cx='8' cy='8' r='6' fill='none' stroke='%231C1B19'/%3E%3Ccircle cx='8' cy='8' r='1.5' fill='%231C1B19'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="page-head">
+        <h1 class="title">Epoch 0</h1>
+        <p id="status" class="status" role="status" aria-live="polite"></p>
+      </header>
+
+      <div id="plate"></div>
+
+      <div class="below">
+        <div id="controls" class="controls-slot"></div>
+        <p id="sentence" class="sentence">
+          Nature is what a network has before training: its wiring and its random starting weights. Nurture is what
+          training adds, and here there is none.
+        </p>
+        <div id="label" class="label-slot"></div>
+      </div>
+
+      <noscript>
+        <p class="sentence">Epoch 0 is a playable plate of 48 untrained neural networks. It needs JavaScript and Web Audio.</p>
+      </noscript>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
