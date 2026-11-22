@@ -88,14 +88,34 @@ describe("aria labels", () => {
 describe("about text", () => {
   it("states the limits, the scale, the signal chain and related work", () => {
     const html = aboutHtml();
-    expect(html).toContain('This "nature" is designed');
+    expect(html).toContain('this "nature" is designed');
     expect(html).toContain("not inherited or selected");
     expect(html).toContain("does not show that training is unnecessary");
     expect(html).toContain("2,039,969");
     expect(html).toContain("300 million");
     expect(html).toContain("fixed gain 0.25 &gt; 20 Hz high-pass &gt; limiter");
-    for (const name of ["Deep Image Prior", "Reservoir computing", "lottery ticket", "David Tudor"]) {
+    for (const name of ["deep image prior", "reservoir computing", "lottery ticket", "david tudor"]) {
       expect(html).toContain(name);
+    }
+  });
+
+  it("starts with the first section open and makes every section collapsible, with related-work links", () => {
+    const html = aboutHtml();
+    expect(html).toContain("<details open>\n  <summary>nature without nurture</summary>");
+    expect((html.match(/<details open>/g) ?? []).length).toBe(1);
+    expect((html.match(/<details>/g) ?? []).length).toBe(2);
+    // Only the playing section is a list.
+    expect((html.match(/<ul>/g) ?? []).length).toBe(1);
+    expect(html).toContain("<summary>playing</summary>\n  <ul>");
+    for (const href of [
+      "https://arxiv.org/abs/1711.10925",
+      "https://www.ai.rug.nl/minds/uploads/EchoStatesTechRep.pdf",
+      "https://arxiv.org/abs/1803.03635",
+      "https://www.lovely.com/titles/cd1602.html",
+      "https://arxiv.org/abs/1612.07837",
+      "https://arxiv.org/abs/2306.05284",
+    ]) {
+      expect(html).toContain(`href="${href}"`);
     }
   });
 });

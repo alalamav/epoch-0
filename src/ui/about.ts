@@ -1,5 +1,5 @@
-// The "about" dialog: the short text of plan section 1, with the limits of the metaphor,
-// the scale comparison, the signal chain and related work.
+// The "about" dialog in three sections: the concept (plan section 1, with the scale comparison and
+// the limits of the metaphor), how to play the plate, and the signal chain with related work.
 
 import {
   CEILING,
@@ -18,57 +18,31 @@ export function aboutHtml(): string {
   const largest = groupThousands(weightCount(MAX_LAYERS));
   const smallest = groupThousands(weightCount(1));
   return `
-<p>One lab plate of ${WELLS} small neural networks that have never been trained. Press a well and hear what the network does.</p>
+<p>one lab plate of ${WELLS} small neural networks that have never been trained. press a well and hear what the network does.</p>
 
-<h3>Nature without nurture</h3>
-<p><b>Nature</b> is what a network has before training: its wiring and the random numbers it starts with. <b>Nurture</b> is what training adds. For music models, nurture is recordings made by other people.</p>
-<p>Most argument about generated music is about nurture: whose recordings, how many hours. Epoch 0 sets nurture to zero and plays what is left.</p>
+<details open>
+  <summary>nature without nurture</summary>
+  <p><b>nature</b> is what a network is before training: its architecture and the random weights it starts with. <b>nurture</b> is what training produces. for music models, nurture is recordings made by other people.</p>
+  <p>nurture in generated music needs to answer: whose recordings, how many hours. EPOCH 0 sets nurture to zero and plays what is left.</p>
+  <p>nature alone makes sound, not music. this "nature" is designed.</p>
+</details>
 
-<h3>The plate</h3>
-<ul>
-  <li>Rows are individuals: six random draws of weights, A to F.</li>
-  <li>Columns are body plans: one to eight layers of 16 units. Each column adds one slower layer, so complexity grows from left to right. Along a row the weights are shared: F6 is F5 with one more slow layer attached.</li>
-  <li>Nothing is taught. Every well reads: training data 0 h, epochs 0.</li>
-</ul>
+<details>
+  <summary>playing</summary>
+  <ul>
+    <li>rows A to F are six random draws of weights. each column adds one slower layer of 16 units, from one to eight, and weights are shared along a row: F6 is F5 with one more layer.</li>
+    <li>press a well to play it. the network's input is 1.0 for as long as the button is down. tap a sounding well and it stops and its state returns to zero. several wells can sound at once; rinse plate stops them all.</li>
+    <li>a well cannot show in advance whether it will be silent. you have to run it to find out.</li>
+    <li>new plate draws new weights. the plate number is part of the link, so you can come back to a plate or share it. the same number gives the same kind of sound, but the waveform can differ from one browser to another.</li>
+    <li>each well is drawn from its own weights and its live state: one ring per layer, sixteen units per ring, a line from each unit to its strongest sender.</li>
+  </ul>
+</details>
 
-<h3>Playing</h3>
-<ul>
-  <li>Press a resting well: it starts.</li>
-  <li>Hold: the network's input is 1.0 for as long as the button is down.</li>
-  <li>Tap a sounding well: it stops and its state returns to zero.</li>
-  <li>Several wells can sound at once. Rinse plate stops them all. New plate draws new weights; the plate number is part of the link, so a plate can be revisited and shared.</li>
-  <li>A well cannot show in advance whether it will be silent. That is only known by running it.</li>
-</ul>
-
-<h3>What the tests behind the piece support</h3>
-<ul>
-  <li>Nature alone makes sound, not music. One layer holds a tone. With four or more layers, half or more of the draws tested were still changing after 30 seconds.</li>
-  <li>Nature is uneven. Some draws change in almost every column and some in none, and simple statistics of the weights did not predict which.</li>
-  <li>Without nurture, experience leaves little trace. A press disturbs a network while it lasts; afterwards the network mostly returns to what it was doing. The weights never change.</li>
-</ul>
-
-<h3>Limits of the metaphor</h3>
-<ul>
-  <li>This "nature" is designed. People chose the wiring and the rule for the random numbers.</li>
-  <li>The draws are not inherited or selected.</li>
-  <li>The piece does not show that training is unnecessary. It shows how much of a generated song is nurture.</li>
-</ul>
-
-<h3>Scale</h3>
-<p>The smallest well has ${smallest} weights and the largest ${largest}, about 2 million, and no recordings. The smallest MusicGen has 300 million weights and was trained on tens of thousands of hours of music.</p>
-
-<h3>Signal</h3>
-<p>The layers are TensorFlow.js layers with their default random starting weights, seeded by the plate number. They run sample by sample at ${groupThousands(SAMPLE_RATE)} samples a second. Sum of the sounding networks &gt; fixed gain ${OUTPUT_GAIN} &gt; ${HIGHPASS_HZ} Hz high-pass &gt; limiter (${LOOKAHEAD_MS} ms look-ahead, ceiling ${CEILING}) &gt; speakers. Nothing else is added. The same plate number gives the same weights and the same kind of sound, not the same waveform on every browser.</p>
-<p>Each well is drawn from its own weights and its live state: one ring per layer, sixteen units per ring, a line from each unit to its strongest sender.</p>
-
-<h3>Related work</h3>
-<ul>
-  <li>Deep Image Prior (Ulyanov, Vedaldi, Lempitsky, 2018): untrained image networks already carry structure.</li>
-  <li>Reservoir computing (Jaeger, 2001): random recurrent networks used unchanged.</li>
-  <li>The lottery ticket hypothesis (Frankle and Carbin, 2019): some draws are better starts than others.</li>
-  <li>David Tudor, <i>Neural Synthesis</i> (1995): an analogue neural chip in feedback, played live.</li>
-  <li>SampleRNN (Mehri et al., 2017): layers running at different clocks; MusicGen (Copet et al., 2023): the scale comparison.</li>
-</ul>`;
+<details>
+  <summary>signal and sources</summary>
+  <p>the layers are tensorflow.js layers with their default random starting weights. they run sample by sample at ${groupThousands(SAMPLE_RATE)} samples a second. sum of the sounding networks &gt; fixed gain ${OUTPUT_GAIN} &gt; ${HIGHPASS_HZ} Hz high-pass &gt; limiter (${LOOKAHEAD_MS} ms look-ahead, ceiling ${CEILING}) &gt; speakers. nothing else is added.</p>
+  <p>untrained image networks already carry structure (<a href="https://arxiv.org/abs/1711.10925" target="_blank" rel="noopener noreferrer">deep image prior</a>, ulyanov, vedaldi, lempitsky, 2018). random recurrent networks can be used unchanged (<a href="https://www.ai.rug.nl/minds/uploads/EchoStatesTechRep.pdf" target="_blank" rel="noopener noreferrer">reservoir computing</a>, jaeger, 2001). some draws are better starts than others (<a href="https://arxiv.org/abs/1803.03635" target="_blank" rel="noopener noreferrer">the lottery ticket hypothesis</a>, frankle and carbin, 2019). david tudor played an analogue neural chip in feedback, live (<a href="https://www.lovely.com/titles/cd1602.html" target="_blank" rel="noopener noreferrer"><i>neural synthesis</i></a>, 1995). <a href="https://arxiv.org/abs/1612.07837" target="_blank" rel="noopener noreferrer">samplernn</a> (mehri et al., 2017) runs its layers at different clocks.</p>
+</details>`;
 }
 
 export interface Sheet {
@@ -140,5 +114,13 @@ export function createSheet(parent: HTMLElement, titleText: string, className = 
 export function createAbout(parent: HTMLElement): Sheet {
   const sheet = createSheet(parent, "Epoch 0 · about");
   sheet.body.innerHTML = aboutHtml();
+  // Opening one section closes the others.
+  const sections = Array.from(sheet.body.querySelectorAll("details"));
+  for (const section of sections) {
+    section.addEventListener("toggle", () => {
+      if (!section.open) return;
+      for (const other of sections) if (other !== section) other.open = false;
+    });
+  }
   return sheet;
 }

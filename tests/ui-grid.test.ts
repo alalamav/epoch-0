@@ -321,73 +321,62 @@ describe("plate grid", () => {
 describe("controls and label", () => {
   afterEach(() => document.body.replaceChildren());
 
-  // as strict as src/plate/seed.ts: exactly six digits
-  const parse = (text: string | null) => (text !== null && /^\d{6}$/.test(text) ? Number(text) : null);
-
   function controls() {
     const calls: string[] = [];
+    const copied: string[] = [];
     const c = createControls(document.body, {
-      parsePlate: parse,
       onRinse: () => calls.push("rinse"),
       onNewPlate: () => calls.push("new"),
-      onPlate: (p) => calls.push(`plate ${p}`),
-      onDish: () => calls.push("dish"),
-      onAbout: () => calls.push("about"),
+      onMagnify: () => calls.push("magnify"),
       getLink: () => "https://example.org/?plate=048213",
-      copyText: async (text) => void calls.push(`copy ${text}`),
+      copyText: async (text) => void copied.push(text),
     });
+    c.setPlate(48213);
     const button = (text: string) =>
       [...c.element.querySelectorAll("button")].find((b) => b.textContent!.startsWith(text))!;
-    const input = c.element.querySelector("input")!;
-    return { c, calls, button, input };
+    return { c, calls, copied, button };
   }
 
-  it("shows the plate number zero-padded and forwards the buttons", () => {
-    const { c, calls, button, input } = controls();
-    c.setPlate(48213);
-    expect(input.value).toBe("048213");
+  it("forwards the buttons and copies the plate link when the plate number is pressed", async () => {
+    const { c, calls, copied, button } = controls();
     button("rinse plate").click();
     button("new plate").click();
-    button("about").click();
-    button("copy link").click();
-    expect(calls).toEqual(["rinse", "new", "about", "copy https://example.org/?plate=048213"]);
+    button("plate 048213").click();
+    await Promise.resolve();
+    expect(calls).toEqual(["rinse", "new"]);
+    expect(copied).toEqual(["https://example.org/?plate=048213"]);
+    expect(button("about")).toBeUndefined();
+    expect(button("lens")).toBeUndefined();
+    expect(c.element.querySelector("input")).toBeNull();
+    expect([...c.element.querySelectorAll("button")].map((b) => b.dataset.ctl)).toEqual([
+      "rinse",
+      "new",
+      "magnify",
+      "plate",
+    ]);
   });
 
-  it("accepts a typed plate number and rejects nonsense", () => {
-    const { c, calls, input } = controls();
-    c.setPlate(48213);
-    input.value = "77";
-    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
-    expect(calls).toEqual(["plate 77"]);
-    expect(input.value).toBe("000077");
-
-    c.setPlate(77);
-    input.value = "x1";
-    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
-    expect(input.getAttribute("aria-invalid")).toBe("true");
-    input.dispatchEvent(new FocusEvent("blur"));
-    expect(input.value).toBe("000077");
-    expect(input.hasAttribute("aria-invalid")).toBe(false);
-    expect(calls).toEqual(["plate 77"]);
-
-    input.value = "000077"; // unchanged: no reload
-    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
-    expect(calls).toEqual(["plate 77"]);
-  });
-
-  it("enables the dish button only for a loaded, touched well", () => {
+  it("calls the single-well view 'magnify', whatever well was touched, and enables it once a well can be shown", () => {
     const { c, calls, button } = controls();
-    const dish = button("dish");
-    expect(dish.disabled).toBe(true);
-    c.setDishWell(wellIndex(5, 5), false);
-    expect(dish.textContent).toBe("dish F6");
-    expect(dish.disabled).toBe(true);
-    c.setDishWell(wellIndex(5, 5), true);
-    expect(dish.disabled).toBe(false);
-    dish.click();
-    expect(calls).toEqual(["dish"]);
-    c.setDishWell(null, true);
-    expect(dish.disabled).toBe(true);
+    const magnify = button("magnify");
+    expect(magnify.textContent).toBe("magnify");
+    expect(magnify.disabled).toBe(true);
+    c.setMagnifyEnabled(true);
+    expect(magnify.disabled).toBe(false);
+    magnify.click();
+    expect(calls).toEqual(["magnify"]);
+    expect(button("dish")).toBeUndefined();
+  });
+
+  it("dims rinse while nothing is sounding", () => {
+    const { c, button } = controls();
+    const rinse = button("rinse");
+    expect(rinse.dataset.idle).toBe("true");
+    c.setSounding(true);
+    expect(rinse.dataset.idle).toBe("false");
+    c.setSounding(false);
+    expect(rinse.dataset.idle).toBe("true");
+    expect(rinse.disabled).toBe(false); // still harmless to press
   });
 
   it("renders the specimen label line by line", () => {

@@ -8,7 +8,7 @@
   --color-ink: #1c1b19;
   --color-hairline: #b9b5a8;
   --color-stain: #2e5e8c;
-  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", "DejaVu Sans Mono", monospace;
+  --font-mono: "B612 Mono", ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", "DejaVu Sans Mono", monospace;
 }
 
 :root {
@@ -19,14 +19,25 @@
   --notch: 12px;
 }
 
-/* Darkfield: light specimen on a dark ground. */
+/* Darkfield: light specimen on a dark ground. Follows the system unless <html data-scheme> forces
+   one (the debug palette sets it). Keep the two dark blocks identical. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-scheme="light"]) {
     --color-paper: #0d0e0f;
     --color-ink: #e9e6dc;
     --color-hairline: #4b4a45;
     --color-stain: #6fa8dc;
   }
+}
+:root[data-scheme="dark"] {
+  color-scheme: dark;
+  --color-paper: #0d0e0f;
+  --color-ink: #e9e6dc;
+  --color-hairline: #4b4a45;
+  --color-stain: #6fa8dc;
+}
+:root[data-scheme="light"] {
+  color-scheme: light;
 }
 
 @media (min-width: 600px) {
@@ -73,6 +84,10 @@
     text-decoration-color: var(--color-hairline);
     text-underline-offset: 0.2em;
   }
+  a:hover {
+    color: var(--color-stain);
+    text-decoration-color: var(--color-stain);
+  }
 }
 
 @layer components {
@@ -105,8 +120,25 @@
     white-space: nowrap;
   }
 
+  .head-right {
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 0 1rem;
+    min-width: 0;
+  }
+  /* Header control ("about"). */
+  .ctl.head-ctl {
+    min-height: 1.75rem;
+    flex: none;
+  }
+
   .status {
     margin: 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     text-align: right;
     color: var(--color-ink);
     opacity: 0.75;
@@ -142,7 +174,7 @@
   .plate[data-layout="wide"] {
     max-width: none;
     /* As wide as the page allows, but short enough that label and controls stay in view. */
-    width: clamp(25.5rem, calc((100dvh - 17rem) * 1.3), 100%);
+    width: var(--plate-w);
   }
 
   .plate-face {
@@ -258,15 +290,20 @@
 
   @media (min-width: 600px) {
     .page {
+      --plate-w: clamp(25.5rem, calc((100dvh - 13.5rem) * 1.3), 100%);
       padding: 1rem 1.5rem 2rem;
     }
     .below {
+      width: var(--plate-w);
+      margin: 0.75rem auto 0;
       grid-template-columns: minmax(0, 1fr) auto;
       grid-template-areas:
-        "sentence controls"
-        "label controls";
+        "label label"
+        "sentence controls";
+      align-items: center;
       column-gap: 2rem;
-      margin-top: 0.75rem;
+      row-gap: 0.65rem;
+      padding: 0;
     }
     .controls-slot {
       grid-area: controls;
@@ -276,16 +313,63 @@
     }
     .label-slot {
       grid-area: label;
+      container-type: inline-size;
     }
     .controls {
       justify-content: flex-end;
-      max-width: 24rem;
+      max-width: none;
+    }
+    /* Full-width horizontal specimen strip under the plate (the dish modal keeps its stacked box). */
+    .label-slot .specimen {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      column-gap: 1.5rem;
+      row-gap: 0.25rem;
+      width: 100%;
+      padding: 0.45rem 0.75rem;
+    }
+    .label-slot .specimen-line {
+      padding-left: 0;
+      text-indent: 0;
+    }
+  }
+
+  @container (min-width: 54rem) {
+    .label-slot .specimen {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      column-gap: 1.5rem;
+      row-gap: 0.25rem;
+      align-items: baseline;
+    }
+    .label-slot .specimen-line:nth-child(1) {
+      grid-column: 1;
+      grid-row: 1;
+    }
+    .label-slot .specimen-line:nth-child(2) {
+      grid-column: 2;
+      grid-row: 1;
+    }
+    .label-slot .specimen-line:nth-child(4) {
+      grid-column: 3;
+      grid-row: 1;
+      text-align: right;
+    }
+    .label-slot .specimen-line:nth-child(3) {
+      grid-column: 1 / 3;
+      grid-row: 2;
+    }
+    .label-slot .specimen-line:nth-child(5) {
+      grid-column: 3;
+      grid-row: 2;
+      text-align: right;
     }
   }
 
   .sentence {
     margin: 0;
-    max-width: 62ch;
+    /* max-width: 62ch; */
   }
 
   .specimen {
@@ -348,30 +432,44 @@
     color: var(--color-stain);
   }
 
-  .plate-field {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.75ch;
-    min-height: 44px;
-    white-space: nowrap;
+  /* Nothing to rinse. */
+  .ctl[data-idle="true"] {
+    opacity: 0.45;
   }
-  .plate-input {
-    box-sizing: content-box;
-    /* six digits plus their letter-spacing, with a little slack so the last digit is not clipped */
-    width: calc(6ch + 0.5em);
+
+  /* Compact layouts: one line for the last well touched; pressing it magnifies the well. */
+  .readout-slot {
+    display: none;
+  }
+  .caption {
+    margin: 0 0 3px;
+    text-align: center;
+    font-size: 0.625rem;
+    letter-spacing: 0.08em;
+    opacity: 0.75;
+  }
+  .readout {
+    appearance: none;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 40px;
     margin: 0;
-    padding: 0.35rem 0.5ch;
+    padding: 0 0.6rem;
     border: 1px solid var(--color-hairline);
     border-radius: 0;
     background: transparent;
     color: inherit;
     font: inherit;
-    /* 16px keeps iOS from zooming the page when the field is focused */
-    font-size: max(1em, 16px);
-    letter-spacing: 0.04em;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    cursor: pointer;
+    touch-action: manipulation;
   }
-  .plate-input[aria-invalid="true"] {
-    border-color: var(--color-stain);
+  .readout:disabled {
+    cursor: default;
   }
 
   /* ── dialogs ───────────────────────────────────────────────── */
@@ -424,11 +522,118 @@
     max-width: 68ch;
     list-style: "· ";
   }
+  .sheet details {
+    margin-top: 0.75rem;
+    padding-top: 0.65rem;
+    border-top: 1px solid var(--color-hairline);
+  }
+  .sheet details:first-of-type {
+    margin-top: 1.25rem;
+  }
+  .sheet summary {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    list-style: none;
+    cursor: pointer;
+    font-size: inherit;
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.75;
+    user-select: none;
+  }
+  .sheet summary::-webkit-details-marker {
+    display: none;
+  }
+  .sheet summary::after {
+    content: "+";
+    flex: none;
+  }
+  .sheet details[open] > summary::after {
+    content: "−";
+  }
+  .sheet summary:hover {
+    opacity: 1;
+    color: var(--color-stain);
+  }
+  .sheet details[open] > summary {
+    margin-bottom: 0.25rem;
+  }
 
   .sheet-dish {
     width: min(64rem, calc(100vw - 12px));
   }
+  .dish-nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 1.5rem;
+    margin-top: 0.25rem;
+  }
+  .dish-map {
+    margin-left: auto;
+  }
+  .dish-arrows {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 1.25rem;
+  }
+  .dish-arrow {
+    min-width: 5ch;
+  }
+  /* Play / pause: the main control of the dish. */
+  .dish-play {
+    justify-content: center;
+    min-width: 9ch;
+    padding: 0 1rem;
+    border: 1px solid var(--color-ink);
+  }
+  .dish-play > span,
+  .dish-play:hover > span,
+  .dish-play[aria-pressed="true"] > span {
+    border-bottom-color: transparent;
+  }
+  .dish-play[aria-pressed="true"] {
+    border-color: var(--color-stain);
+  }
+  .dish-play[data-state="held"] {
+    background: color-mix(in srgb, var(--color-stain) 18%, transparent);
+  }
+  .dish-play[aria-disabled="true"] {
+    opacity: 0.45;
+    cursor: progress;
+  }
+  /* The plate in miniature: where the dish is, and which wells are sounding. */
+  .dish-map {
+    display: grid;
+    gap: 3px;
+    padding: 4px 0;
+  }
+  .dish-map-cell {
+    box-sizing: border-box;
+    width: 9px;
+    height: 9px;
+    border: 1px solid var(--color-hairline);
+    border-radius: 50%;
+    cursor: pointer;
+  }
+  .dish-map-cell[data-state="loading"] {
+    border-style: dotted;
+    cursor: default;
+  }
+  .dish-map-cell[data-state="sounding"],
+  .dish-map-cell[data-state="held"] {
+    border-color: var(--color-ink);
+    background: var(--color-ink);
+  }
+  .dish-map-cell[data-current="true"] {
+    border-color: var(--color-stain);
+    box-shadow: 0 0 0 2px var(--color-stain);
+  }
   .dish-container {
+    touch-action: none; /* swipes move between wells */
     position: relative;
     width: 100%;
     height: min(72dvh, 110vw);
@@ -449,6 +654,127 @@
     -webkit-user-select: none;
     -webkit-touch-callout: none;
   }
+
+  /* ── debug palette (?debug or Shift+D) ─────────────────────── */
+
+  .debug-palette {
+    position: fixed;
+    z-index: 10;
+    box-sizing: border-box;
+    width: min(21rem, calc(100vw - 16px));
+    padding: 0.5rem 0.75rem 0.6rem;
+    border: 1px solid var(--color-ink);
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-size: 0.6875rem;
+    line-height: 1.4;
+  }
+  .debug-palette[hidden] {
+    display: none;
+  }
+  .debug-palette[data-corner^="bottom"] {
+    bottom: max(8px, env(safe-area-inset-bottom));
+  }
+  .debug-palette[data-corner^="top"] {
+    top: max(8px, env(safe-area-inset-top));
+  }
+  .debug-palette[data-corner$="left"] {
+    left: max(8px, env(safe-area-inset-left));
+  }
+  .debug-palette[data-corner$="right"] {
+    right: max(8px, env(safe-area-inset-right));
+  }
+  .debug-head .debug-row {
+    margin-top: 0;
+  }
+  .debug-head,
+  .debug-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0.6rem;
+  }
+  .debug-head {
+    justify-content: space-between;
+  }
+  .debug-row,
+  .debug-swatches {
+    margin-top: 0.45rem;
+  }
+  .debug-title {
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .debug-key {
+    min-width: 6ch;
+    opacity: 0.75;
+  }
+  .debug-btn,
+  .debug-swatch {
+    appearance: none;
+    margin: 0;
+    padding: 0.2rem 0.5rem;
+    border: 1px solid var(--color-hairline);
+    border-radius: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .debug-btn[aria-pressed="true"],
+  .debug-swatch[aria-pressed="true"] {
+    border-color: var(--color-ink);
+    box-shadow: inset 0 0 0 1px var(--color-ink);
+  }
+  .debug-swatches {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.3rem;
+  }
+  .debug-swatch {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-align: left;
+    white-space: nowrap;
+  }
+  .debug-chip {
+    flex: none;
+    width: 1.6rem;
+    height: 0.9rem;
+    border: 1px solid var(--color-hairline);
+  }
+  .debug-color {
+    width: 2.2rem;
+    height: 1.5rem;
+    padding: 0;
+    border: 1px solid var(--color-hairline);
+    background: transparent;
+    cursor: pointer;
+  }
+  .debug-hex {
+    box-sizing: content-box;
+    width: 8ch;
+    padding: 0.2rem 0.4rem;
+    border: 1px solid var(--color-hairline);
+    border-radius: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: max(1em, 16px); /* no zoom on focus in iOS */
+  }
+  .debug-hex[aria-invalid="true"] {
+    border-color: var(--color-stain);
+  }
+  .debug-note {
+    opacity: 0.75;
+  }
+  .debug-readout {
+    margin: 0.45rem 0 0;
+    padding-left: 0.5rem;
+    border-left: 3px solid var(--color-stain);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -465,5 +791,210 @@
 @media (forced-colors: active) {
   .well {
     border-color: ButtonText;
+  }
+}
+
+/* ── compact layouts: phones ─────────────────────────────────────
+   The plate is the page. Everything fits one screen, so nothing needs scrolling (the wells do not
+   scroll the page: touch-action none). Portrait: plate turned to six columns, a readout line and a
+   bar of controls in thumb reach. Short landscape: plate at 8 by 6 with the rest in a side rail. */
+
+@media (max-width: 599.98px), (orientation: landscape) and (max-height: 520px) {
+  :root {
+    --head: 1rem;
+    --gap: 2px;
+    --plate-pad: 4px;
+    --notch: 12px;
+  }
+}
+
+@layer components {
+  @media (max-width: 599.98px), (orientation: landscape) and (max-height: 520px) {
+    .page {
+      display: grid;
+      height: 100dvh;
+      max-width: none;
+      padding: max(2px, env(safe-area-inset-top)) max(6px, env(safe-area-inset-right))
+        max(6px, env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left));
+    }
+    .page-head {
+      align-items: center;
+      min-height: 2.5rem;
+      padding: 0 2px;
+    }
+    .ctl.head-ctl {
+      min-height: 2.5rem;
+    }
+    /* The slot the plate is fitted into, by width or by height, whichever is tighter. */
+    #plate {
+      container-type: size;
+      display: grid;
+      place-items: center;
+      min-width: 0;
+      min-height: 0;
+    }
+    .plate,
+    .plate[data-layout="wide"] {
+      margin: 0;
+      max-width: none;
+    }
+    .below {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      width: auto;
+      margin: 4px 0 0;
+      padding: 0;
+    }
+    .sentence,
+    .label-slot,
+    .ctl-more,
+    .dish-arrows /* swipes and the map move between wells */ {
+      display: none;
+    }
+    .readout-slot {
+      display: block;
+    }
+    .controls {
+      max-width: none;
+    }
+
+    /* The dish fills the screen. */
+    .sheet-dish {
+      width: 100vw;
+      height: 100dvh;
+      max-height: none;
+      margin: 0;
+      border: 0;
+      padding: max(0.25rem, env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-right))
+        max(0.5rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
+    }
+    .sheet-dish[open] {
+      display: flex;
+      flex-direction: column;
+    }
+    .sheet-dish .sheet-body {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .sheet-dish .dish-container {
+      flex: 1;
+      height: auto;
+      min-height: 10rem;
+    }
+    .dish-play {
+      min-width: 11ch;
+      min-height: 48px;
+    }
+    .dish-map {
+      gap: 5px;
+      padding: 6px 0;
+    }
+    .dish-map-cell {
+      width: 15px;
+      height: 15px;
+    }
+  }
+
+  @media (max-width: 599.98px) {
+    .page {
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      min-height: 27rem;
+    }
+    /* 0.755 is just under the width : height of the turned plate at any well size. */
+    .plate[data-layout="tall"] {
+      width: min(100cqw, calc(100cqh * 0.755));
+    }
+    .controls {
+      flex-wrap: nowrap;
+      justify-content: space-between;
+      gap: 0 0.5rem;
+    }
+  }
+
+  @media (orientation: landscape) and (max-height: 520px) and (min-width: 600px) {
+    .page {
+      grid-template-columns: minmax(0, 1fr) 13.5rem;
+      grid-template-rows: auto minmax(0, 1fr);
+      grid-template-areas:
+        "plate head"
+        "plate below";
+      column-gap: 0.75rem;
+      min-height: 19rem;
+    }
+    .page-head {
+      grid-area: head;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0;
+    }
+    .head-right {
+      flex-direction: column-reverse;
+      align-items: flex-start;
+      max-width: 100%;
+    }
+    .status {
+      text-align: left;
+      max-width: 100%;
+    }
+    #plate {
+      grid-area: plate;
+    }
+    .below {
+      grid-area: below;
+      justify-content: flex-end;
+      margin-top: 0;
+    }
+    /* 1.29 is just under the width : height of the plate at any well size. */
+    .plate[data-layout="wide"] {
+      width: min(100cqw, calc(100cqh * 1.29));
+    }
+    .controls {
+      flex-direction: column;
+      flex-wrap: nowrap;
+      align-items: flex-start;
+      justify-content: flex-start;
+    }
+    .controls .ctl {
+      min-height: 36px;
+    }
+    /* The rail is narrower than the readout's one line. */
+    .readout {
+      padding-block: 4px;
+      white-space: normal;
+    }
+    .caption {
+      text-align: left;
+    }
+
+    /* Dish on the left, controls and label on the right. */
+    .sheet-dish .sheet-body {
+      display: grid;
+      /* wide enough for play / pause and the map side by side */
+      grid-template-columns: minmax(0, 1fr) 17rem;
+      grid-template-rows: auto minmax(0, 1fr);
+      grid-template-areas:
+        "dish nav"
+        "dish foot";
+      column-gap: 1rem;
+    }
+    .sheet-dish .dish-nav {
+      grid-area: nav;
+      flex-wrap: nowrap;
+      gap: 0 1rem;
+      margin-top: 0;
+    }
+    .sheet-dish .dish-container {
+      grid-area: dish;
+      margin-top: 0;
+      min-height: 0;
+    }
+    .sheet-dish .dish-foot {
+      grid-area: foot;
+      align-self: end;
+      overflow: hidden;
+    }
   }
 }

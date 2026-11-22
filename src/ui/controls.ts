@@ -1,37 +1,49 @@
-// Controls under the plate: rinse plate, new plate, the plate number, dish view, about.
+// Controls: rinse plate, new plate, magnify, plate number (copies the link). (About is in the header.)
 
-import { formatPlate, wellName } from "../plate/constants";
-import type { ParsePlate } from "./plate-url";
+import { clipboardCopy, createPlateBadge } from "./readout";
+
+export { clipboardCopy };
 
 export interface ControlsOptions {
-  parsePlate: ParsePlate;
   /** Stop all wells. */
   onRinse(): void;
   onNewPlate(): void;
-  /** A valid plate number was typed. */
-  onPlate(plate: number): void;
-  /** Open the dish view for the last well touched. */
-  onDish(): void;
-  onAbout(): void;
-  /** The link to copy. */
+  /** Open the single-well view on the last well touched, or on a random one. */
+  onMagnify(): void;
+  /** Current plate URL, copied when the plate number is pressed. */
   getLink(): string;
-  /** Default: navigator.clipboard.writeText. */
   copyText?(text: string): Promise<void>;
 }
 
 export interface Controls {
   readonly element: HTMLElement;
+  /** False until a well can be shown (weights loaded, dish view available). */
+  setMagnifyEnabled(enabled: boolean): void;
+  /** Whether any well is sounding: "rinse" is dimmed when there is nothing to stop. */
+  setSounding(any: boolean): void;
+  /** Update the displayed plate number on the copy-link control. */
   setPlate(plate: number): void;
-  /** The well the dish button opens (null: none touched yet) and whether it can be opened. */
-  setDishWell(well: number | null, enabled: boolean): void;
 }
 
-function textButton(text: string, onClick: () => void): { button: HTMLButtonElement; label: HTMLSpanElement } {
+/** `more` is the part of the text that narrow layouts drop: "rinse" + " plate". */
+function textButton(
+  name: string,
+  text: string,
+  onClick: () => void,
+  more = "",
+): { button: HTMLButtonElement; label: HTMLSpanElement } {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "ctl";
+  button.dataset.ctl = name;
   const label = document.createElement("span");
   label.textContent = text;
+  if (more) {
+    const rest = document.createElement("span");
+    rest.className = "ctl-more";
+    rest.textContent = more;
+    label.append(rest);
+  }
   button.append(label);
   button.addEventListener("click", onClick);
   return { button, label };
@@ -43,107 +55,42 @@ export function createControls(parent: HTMLElement, options: ControlsOptions): C
   element.setAttribute("role", "group");
   element.setAttribute("aria-label", "Plate controls");
 
-  const rinse = textButton("rinse plate", options.onRinse);
+  const rinse = textButton("rinse", "rinse", options.onRinse, " plate");
   rinse.button.title = "stop all wells";
   rinse.button.setAttribute("aria-label", "rinse plate: stop all wells");
+  rinse.button.dataset.idle = "true";
 
-  const fresh = textButton("new plate", options.onNewPlate);
+  const fresh = textButton("new", "new plate", options.onNewPlate);
   fresh.button.title = "draw new random weights";
 
-  // The plate number: editable, six digits.
-  const field = document.createElement("label");
-  field.className = "plate-field";
-  const fieldText = document.createElement("span");
-  fieldText.textContent = "plate";
-  const input = document.createElement("input");
-  input.className = "plate-input";
-  input.type = "text";
-  input.inputMode = "numeric";
-  input.pattern = "[0-9]*";
-  input.maxLength = 6;
-  input.size = 6;
-  input.autocomplete = "off";
-  input.spellcheck = false;
-  input.setAttribute("aria-label", "Plate number, six digits");
-  field.append(fieldText, input);
+  const magnify = textButton("magnify", "magnify", options.onMagnify);
+  magnify.button.disabled = true;
+  magnify.button.title = "single-well view of the last well touched, or of a random well";
+  magnify.button.setAttribute("aria-label", "magnify: open the single-well view");
+  magnify.button.setAttribute("aria-haspopup", "dialog");
 
-  let plate = 0;
-  /** What was typed, with one to five digits padded to the six the link uses. */
-  const typed = () => {
-    const text = input.value.trim();
-    return /^[0-9]{1,6}$/.test(text) ? text.padStart(6, "0") : text;
-  };
-  function commit() {
-    const parsed = options.parsePlate(typed());
-    if (parsed === null) {
-      input.setAttribute("aria-invalid", "true");
-      return;
-    }
-    input.removeAttribute("aria-invalid");
-    input.value = formatPlate(parsed);
-    if (parsed !== plate) options.onPlate(parsed);
-  }
-  function revert() {
-    input.removeAttribute("aria-invalid");
-    input.value = formatPlate(plate);
-  }
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      commit();
-    } else if (e.key === "Escape") {
-      revert();
-    }
+  const plateButton = document.createElement("button");
+  plateButton.type = "button";
+  plateButton.className = "ctl";
+  plateButton.dataset.ctl = "plate";
+  const badge = createPlateBadge(plateButton, {
+    getLink: options.getLink,
+    copyText: options.copyText,
   });
-  input.addEventListener("blur", () => {
-    const parsed = options.parsePlate(typed());
-    if (parsed === null) revert();
-    else commit();
-  });
-  input.addEventListener("focus", () => input.select());
 
-  const copyText =
-    options.copyText ??
-    ((text: string) =>
-      navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject(new Error("no clipboard")));
-  let copyTimer: ReturnType<typeof setTimeout> | undefined;
-  const copy = textButton("copy link", () => {
-    const say = (text: string) => {
-      copy.label.textContent = text;
-      clearTimeout(copyTimer);
-      copyTimer = setTimeout(() => (copy.label.textContent = "copy link"), 1600);
-    };
-    copyText(options.getLink()).then(
-      () => say("copied"),
-      () => say("copy failed"),
-    );
-  });
-  copy.button.title = "copy the link to this plate";
-  copy.label.setAttribute("aria-live", "polite");
-
-  const dish = textButton("dish", options.onDish);
-  dish.button.disabled = true;
-  dish.button.title = "single-well view of the last well touched";
-
-  const about = textButton("about", options.onAbout);
-  about.button.setAttribute("aria-haspopup", "dialog");
-
-  element.append(rinse.button, fresh.button, field, copy.button, dish.button, about.button);
+  element.append(rinse.button, fresh.button, magnify.button, plateButton);
   parent.append(element);
 
   return {
     element,
-    setPlate(next) {
-      plate = next;
-      revert();
+    setMagnifyEnabled(enabled) {
+      magnify.button.disabled = !enabled;
     },
-    setDishWell(well, enabled) {
-      dish.label.textContent = well === null ? "dish" : `dish ${wellName(well)}`;
-      dish.button.disabled = well === null || !enabled;
-      dish.button.setAttribute(
-        "aria-label",
-        well === null ? "dish view: touch a well first" : `open dish view of well ${wellName(well)}`,
-      );
+    setSounding(any) {
+      rinse.button.dataset.idle = String(!any);
+    },
+    setPlate(plate) {
+      badge.setPlate(plate);
     },
   };
 }

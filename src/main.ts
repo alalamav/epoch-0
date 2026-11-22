@@ -20,14 +20,16 @@ import type {
   ToEngine,
   ToWeightsWorker,
 } from "./contracts";
-import { MAX_LAYERS, ROWS, WELLS, formatPlate, wellRow } from "./plate/constants";
+import { MAX_LAYERS, ROWS, WELLS, wellRow } from "./plate/constants";
 import { createAbout } from "./ui/about";
 import { createControls } from "./ui/controls";
+import { createDebugPalette } from "./ui/debug-palette";
 import { createDishPanel } from "./ui/dish-panel";
 import { createPlateGrid } from "./ui/grid";
 import { NARROW_QUERY } from "./ui/grid-nav";
 import { createSpecimenLabel } from "./ui/label";
 import { needsRewrite, plateFromSearch, plateHref, resolvePlate } from "./ui/plate-url";
+import { createReadout, magnifyTarget } from "./ui/readout";
 import { createPressLogic } from "./ui/press";
 import { readDocumentTheme } from "./ui/theme";
 
@@ -81,7 +83,7 @@ function boot() {
     onTouch(well) {
       lastWell = well;
       label.set(plate, well);
-      refreshDishButton();
+      readout.set(well);
     },
     onPress(well) {
       audioWanted = true;
@@ -90,6 +92,7 @@ function boot() {
       post({ type: "press", well });
       scene.setPressed(well, true);
       refreshWell(well);
+      refreshRinse();
     },
     onRelease(well) {
       post({ type: "release", well });
@@ -100,6 +103,7 @@ function boot() {
       tracker.stop(well, now());
       post({ type: "stop", well });
       refreshWell(well);
+      refreshRinse();
     },
   });
 
@@ -107,20 +111,29 @@ function boot() {
   const grid = createPlateGrid(byId("plate"), { press });
   const label = createSpecimenLabel(byId("label"));
   const about = createAbout(document.body);
+  const readout = createReadout(byId("readout"), { onOpen: magnify });
+  const aboutButton = byId("about-btn") as HTMLButtonElement;
+  aboutButton.addEventListener("click", () => {
+    palette.host(about.dialog);
+    about.open();
+  });
   const controls = createControls(byId("controls"), {
-    parsePlate,
     onRinse: rinse,
     onNewPlate: () => goToPlate(randomPlate(), "push"),
-    onPlate: (next) => goToPlate(next, "push"),
-    onDish: openDish,
-    onAbout: () => about.open(),
+    onMagnify: magnify,
     getLink: () => plateHref(location.href, plate),
   });
   const dishPanel = createDishPanel(document.body, {
     press,
-    onClose: () => dish?.close(),
+    onClose() {
+      dish?.close();
+      palette.host(document.body);
+    },
     onResize: () => dish?.resize(),
+    canOpen: canMagnify,
+    onNavigate: (well) => openDish(well),
   });
+  about.dialog.addEventListener("close", () => palette.host(document.body));
 
   // ── views ──────────────────────────────────────────────────
   let theme = readDocumentTheme();
@@ -146,10 +159,19 @@ function boot() {
   });
 
   const dark = matchMedia("(prefers-color-scheme: dark)");
-  dark.addEventListener("change", () => {
+  function refreshTheme() {
     theme = readDocumentTheme();
     scene.setTheme(theme);
     dish?.setTheme(theme);
+  }
+  // Debug: stain colour and light/dark switch. Shown with ?debug or Shift+D; applies a stored choice.
+  const palette = createDebugPalette(document.body, { systemDark: () => dark.matches, onChange: refreshTheme });
+  dark.addEventListener("change", () => palette.apply());
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "D" || !e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+    const target = e.target as HTMLElement | null;
+    if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+    palette.setVisible(!palette.visible);
   });
 
   const reduced = matchMedia("(prefers-reduced-motion: reduce)");
@@ -168,6 +190,7 @@ function boot() {
   function refreshWell(well: number) {
     const state = wellState(isReady(well), press.isHeld(well), tracker.isSounding(well));
     grid.setWellState(well, state);
+    dishPanel.setMapState(well, state);
     if (dishPanel.well === well) dishPanel.setWellState(state);
   }
 
@@ -176,9 +199,27 @@ function boot() {
     refreshDishButton();
   }
 
+  function canMagnify(well: number): boolean {
+    return dish !== null && readiness.isReady(well) && !!layouts[wellRow(well)];
+  }
+
   function refreshDishButton() {
-    const canOpen = dish !== null && lastWell !== null && readiness.isReady(lastWell);
-    controls.setDishWell(lastWell, canOpen);
+    let any = false;
+    for (let well = 0; well < WELLS && !any; well++) any = canMagnify(well);
+    controls.setMagnifyEnabled(any);
+    readout.element.disabled = !any;
+  }
+
+  function refreshRinse() {
+    let any = false;
+    for (let well = 0; well < WELLS && !any; well++) any = tracker.isSounding(well);
+    controls.setSounding(any);
+  }
+
+  /** Open the dish on the last well touched, or on a random well if none was (or it is not loaded). */
+  function magnify() {
+    const well = magnifyTarget(lastWell, WELLS, canMagnify);
+    if (well !== null) openDish(well);
   }
 
   function refreshStatus() {
@@ -211,18 +252,24 @@ function boot() {
     tracker.stopAll(now());
     post({ type: "stopAll" });
     refreshAllWells();
+    refreshRinse();
   }
 
-  function openDish() {
-    if (!dish || lastWell === null || !readiness.isReady(lastWell)) return;
-    const row = wellRow(lastWell);
+  /** Open the dish on `well` (default: the last well touched), or move an open dish to it. */
+  function openDish(well: number | null = lastWell) {
+    if (!dish || well === null || !readiness.isReady(well)) return;
+    const row = wellRow(well);
     const layout = layouts[row];
     if (!layout) return;
-    dishPanel.open(plate, lastWell); // first, so the container has a size
+    lastWell = well;
+    label.set(plate, well);
+    readout.set(well);
+    dishPanel.open(plate, well); // first, so the container has a size
+    palette.host(dishPanel.dialog);
     dish.setAnalyser(graph ? graph.analyser : null);
-    dish.open(lastWell, layout, matrices[row]);
+    dish.open(well, layout, matrices[row]);
     dish.resize();
-    refreshWell(lastWell);
+    refreshWell(well);
   }
 
   // ── weights ────────────────────────────────────────────────
@@ -301,10 +348,11 @@ function boot() {
     post({ type: "clear" });
     scene.clear();
 
-    document.title = `Epoch 0 · plate ${formatPlate(plate)}`;
     grid.setPlate(plate);
     controls.setPlate(plate);
     label.set(plate, null);
+    readout.set(null);
+    refreshRinse();
     refreshAllWells();
     refreshStatus();
     startWorker(plate);
@@ -332,6 +380,7 @@ function boot() {
       now(),
     );
     for (let well = 0; well < WELLS; well++) refreshWell(well);
+    refreshRinse();
   }
 
   createAudioGraph().then(
