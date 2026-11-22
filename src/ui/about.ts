@@ -5,18 +5,14 @@ import {
   CEILING,
   HIGHPASS_HZ,
   LOOKAHEAD_MS,
-  MAX_LAYERS,
   OUTPUT_GAIN,
   SAMPLE_RATE,
   WELLS,
-  weightCount,
 } from "../plate/constants";
 import { groupThousands } from "./label";
 
 /** The dialog body as HTML. Static text only; numbers come from constants.ts. */
 export function aboutHtml(): string {
-  const largest = groupThousands(weightCount(MAX_LAYERS));
-  const smallest = groupThousands(weightCount(1));
   return `
 <p>one lab plate of ${WELLS} small neural networks that have never been trained. press a well and hear what the network does.</p>
 

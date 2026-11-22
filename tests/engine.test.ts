@@ -233,9 +233,12 @@ describe("Network", () => {
 // ───────────────────────────── (b) stored reference output ─────────────────────────────
 
 describe("stored reference output", () => {
-  // Same machine and same JavaScript engine: exact. The tolerance is there for a Math.tanh that
-  // rounds differently; such a difference is amplified by wells that keep changing, so on another
-  // JavaScript engine the later checkpoints of those wells may legitimately fail.
+  // Same machine and same JavaScript engine: exact. On another JS engine / libm (e.g. Linux x64
+  // Node 22 in CI vs macOS ARM64 Node 25 where the fixture was generated), 1-ULP differences in
+  // Math.tanh stay within TOL over the 64-sample head, but are exponentially amplified over 70,000
+  // samples in chaotic 4+ layer wells. Check whether this runtime's prototype reproduces the
+  // stored 4-layer checkpoints; if not, still check the stored head and verify the 70,000-sample
+  // checkpoints against the prototype running on this runtime.
   const TOL = 1e-9;
   const sample = (y: ArrayLike<number>): { head: number[]; checkpoints: number[] } => {
     const head = Array.from({ length: fixture.head }, (_, t) => y[t]);
@@ -243,6 +246,16 @@ describe("stored reference output", () => {
     for (let t = fixture.head; t < fixture.samples; t += fixture.every) checkpoints.push(y[t]);
     checkpoints.push(y[fixture.samples - 1]);
     return { head, checkpoints };
+  };
+  let sameMathCache: boolean | null = null;
+  const fixtureMatchesRuntime = (): boolean => {
+    if (sameMathCache !== null) return sameMathCache;
+    const probe = fixture.networks.find((c) => c.layers === 4 && c.hold === 1)!;
+    const proto = new ClockNet(probe.layers, flatWeights(probe.layers, probe.seed), Float32Array);
+    const y = new Float64Array(fixture.samples);
+    for (let t = 0; t < y.length; t++) y[t] = proto.step(t < probe.hold ? 1 : 0);
+    sameMathCache = maxDiff(sample(y).checkpoints, probe.checkpoints) < TOL;
+    return sameMathCache;
   };
 
   it("covers 1 to 8 layers, pulse and hold", () => {
@@ -253,13 +266,21 @@ describe("stored reference output", () => {
 
   for (const c of fixture.networks) {
     it(`Network, ${c.layers} layers, input held for ${c.hold} sample${c.hold > 1 ? "s" : ""}`, () => {
-      const net = new Network(toLayers(c.layers, flatWeights(c.layers, c.seed)));
+      const flat = flatWeights(c.layers, c.seed);
+      const net = new Network(toLayers(c.layers, flat));
       const y = new Float64Array(fixture.samples);
       for (let t = 0; t < y.length; t++) y[t] = net.step(t < c.hold ? 1 : 0);
       const got = sample(y);
       expect(got.checkpoints.length).toBe(c.checkpoints.length);
       expect(maxDiff(got.head, c.head)).toBeLessThan(TOL);
-      expect(maxDiff(got.checkpoints, c.checkpoints)).toBeLessThan(TOL);
+      if (fixtureMatchesRuntime()) {
+        expect(maxDiff(got.checkpoints, c.checkpoints)).toBeLessThan(TOL);
+      } else {
+        const proto = new ClockNet(c.layers, flat, Float32Array);
+        const py = new Float64Array(fixture.samples);
+        for (let t = 0; t < py.length; t++) py[t] = proto.step(t < c.hold ? 1 : 0);
+        expect(maxDiff(got.checkpoints, sample(py).checkpoints)).toBeLessThan(TOL);
+      }
       expect(rmsOf(c.checkpoints)).toBeGreaterThan(0.01);
     });
   }
@@ -267,9 +288,10 @@ describe("stored reference output", () => {
   it("Engine: three wells, summed, gain, high-pass, limiter", () => {
     const ch = fixture.chain;
     const engine = new Engine({ outputRate: SAMPLE_RATE });
-    ch.rowSeeds.forEach((seed, r) => {
-      for (const w of toLayers(8, flatWeights(8, seed), r)) engine.handle({ type: "weights", weights: w });
-    });
+    const rows = ch.rowSeeds.map((seed, r) => toLayers(8, flatWeights(8, seed), r));
+    for (const row of rows) {
+      for (const w of row) engine.handle({ type: "weights", weights: w });
+    }
     const out = new Float32Array(fixture.samples);
     for (const w of ch.wells) engine.handle({ type: "press", well: wellIndex(w.row, w.layers - 1) });
     engine.process(out.subarray(0, ch.hold));
@@ -277,7 +299,18 @@ describe("stored reference output", () => {
     for (let o = ch.hold; o < out.length; o += 128) engine.process(out.subarray(o, Math.min(out.length, o + 128)));
     const got = sample(out);
     expect(maxDiff(got.head, ch.head)).toBeLessThan(F32);
-    expect(maxDiff(got.checkpoints, ch.checkpoints)).toBeLessThan(F32);
+    if (fixtureMatchesRuntime()) {
+      expect(maxDiff(got.checkpoints, ch.checkpoints)).toBeLessThan(F32);
+    } else {
+      const ref = reference(
+        ch.wells.map((w) => ({
+          net: new ClockNet(w.layers, flatOfPrefix(rows[w.row], w.layers), Float32Array),
+          drive: (t: number) => (t < ch.hold ? 1 : 0),
+        })),
+        fixture.samples,
+      );
+      expect(maxDiff(got.checkpoints, sample(ref.out).checkpoints)).toBeLessThan(F32);
+    }
     // the limiter was at work in the reference, so this covers it
     expect(ch.peakBeforeLimiter).toBeGreaterThan(CEILING);
     expect(ch.lowestGain).toBeLessThan(0.95);

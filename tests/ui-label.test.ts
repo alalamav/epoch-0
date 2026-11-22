@@ -86,15 +86,11 @@ describe("aria labels", () => {
 });
 
 describe("about text", () => {
-  it("states the limits, the scale, the signal chain and related work", () => {
+  it("states the premise, the signal chain and related work", () => {
     const html = aboutHtml();
     expect(html).toContain('this "nature" is designed');
-    expect(html).toContain("not inherited or selected");
-    expect(html).toContain("does not show that training is unnecessary");
-    expect(html).toContain("2,039,969");
-    expect(html).toContain("300 million");
     expect(html).toContain("fixed gain 0.25 &gt; 20 Hz high-pass &gt; limiter");
-    for (const name of ["deep image prior", "reservoir computing", "lottery ticket", "david tudor"]) {
+    for (const name of ["deep image prior", "reservoir computing", "lottery ticket", "david tudor", "samplernn"]) {
       expect(html).toContain(name);
     }
   });
@@ -113,7 +109,6 @@ describe("about text", () => {
       "https://arxiv.org/abs/1803.03635",
       "https://www.lovely.com/titles/cd1602.html",
       "https://arxiv.org/abs/1612.07837",
-      "https://arxiv.org/abs/2306.05284",
     ]) {
       expect(html).toContain(`href="${href}"`);
     }
